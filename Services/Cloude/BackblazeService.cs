@@ -51,5 +51,6 @@ namespace E_learning.Services.Cloude
 
             return _s3Client.GetPreSignedURL(request);
         }
+
     }
 }

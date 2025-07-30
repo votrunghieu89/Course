@@ -7,5 +7,7 @@ namespace E_learning.Repositories.Auth
         Task<UserModel> GetUserByUsernameAsync(string username);
         Task<bool> CheckUsernameExistsAsync(string username);
         Task<bool> AddUserAsync(UserModel user);
+        Task<UserModel> getUserbyID(string userID);
+        Task<UserModel> GetUserByEmailAsync(string email);
     }
 }

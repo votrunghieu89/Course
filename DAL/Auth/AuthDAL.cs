@@ -125,5 +125,86 @@ namespace E_learning.DAL.Auth
                 await command.ExecuteNonQueryAsync();
             }
         }
+
+        public async Task<UserModel> getUserbyID( string userID)
+        {
+            try
+            {
+                UserModel model = new UserModel();
+                using (SqlConnection connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    string query = "SELECT Email, UserRole FROM Users WHERE UserID = @UserID";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@UserID", userID);
+                        using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                        {
+                            if (await reader.ReadAsync())
+                            {
+                                Enum.TryParse<UserRole>(reader.GetString(reader.GetOrdinal("UserRole")), true, out var role);
+                                model = new UserModel
+                                {
+                                    UserID = userID,
+                                    Email = reader.GetString(reader.GetOrdinal("Email")),
+                                    UserRole = role
+                                };
+                            }
+                        }
+                    }
+                }
+                return model;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving user by ID: {UserID}", userID);
+                return null;
+            }
+        }
+
+        public async Task<UserModel> GetUserByEmailAsync(string email)
+        {
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(_connectionString))
+                {
+                    await connection.OpenAsync();
+                    string query = "SELECT * FROM Users WHERE Email = @Email";
+                    using (SqlCommand command = new SqlCommand(query, connection))
+                    {
+                        command.Parameters.AddWithValue("@Email", email);
+                        using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                        {
+                            if (await reader.ReadAsync())
+                            {
+                                Enum.TryParse<UserRole>(reader.GetString(reader.GetOrdinal("UserRole")), true, out var role);
+                                var model = new UserModel
+                                {
+                                    UserID = reader.GetString(reader.GetOrdinal("UserID")),
+                                    Username = reader.GetString(reader.GetOrdinal("Username")),
+                                    Password = reader.GetString(reader.GetOrdinal("Password")),
+                                    Email = email,
+                                    FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
+                                    LastName = reader.GetString(reader.GetOrdinal("LastName")),
+                                    FullName = $"{reader.GetString(reader.GetOrdinal("FirstName"))} {reader.GetString(reader.GetOrdinal("LastName"))}",
+                                    UserRole = role
+                                };
+                                return model;
+                            }
+                            else
+                            {
+                               
+                                return null;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving user by email: {Email}", email);
+                return null;
+            }
+        }
     }
 }

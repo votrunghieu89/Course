@@ -246,7 +246,8 @@ namespace E_learning.Controllers.Course
             RedisModel newRedis = new RedisModel
            (
                 redisKey,
-                videoUrlB2
+                videoUrlB2,
+                TimeSpan.FromHours(3)
            );
             bool isSaved = await _redisService.SetAsync(newRedis);
             if (!isSaved)

@@ -18,6 +18,7 @@ using StackExchange.Redis;
 using E_learning.Services.Cloude;
 using E_learning.Repositories.Auth;
 using Microsoft.OpenApi.Models;
+using E_learning.Security;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,6 +46,9 @@ builder.Services.AddScoped<VnPayLibrary>();
 builder.Services.AddScoped<ConvertURL>();
 builder.Services.AddScoped<BackblazeService>();
 builder.Services.AddScoped<RedisService>();
+builder.Services.AddScoped<CreateAccessToken>();
+builder.Services.AddScoped<CreateRefreshToken>();
+builder.Services.AddScoped<GoogleService>();
 // === CẤU HÌNH JWT AUTHENTICATION ===
 builder.Services.AddAuthentication(options =>
 {
@@ -68,7 +72,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.Configure<GoogleModel>(builder.Configuration.GetSection("GoogleAuth"));
 // Configure BackBlaze S3 client
 builder.Services.Configure<BackBlazeModel>(builder.Configuration.GetSection("BackBlaze"));
 builder.Services.AddSingleton<IAmazonS3>(sp =>
@@ -124,7 +128,17 @@ builder.Services.AddSwaggerGen(options =>
         }
     });
 });
-
+// CORS cho React
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+builder.Services.AddHttpClient(); 
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -134,7 +148,7 @@ if (app.Environment.IsDevelopment())
 }
 app.UseStaticFiles();
 app.UseHttpsRedirection();
-
+app.UseCors("AllowAll");
 app.UseAuthentication(); 
 app.UseAuthorization(); 
 

@@ -9,8 +9,11 @@ using Microsoft.AspNetCore.Authorization;
 using E_learning.DTO.Auth;
 using E_learning.Repositories.Auth;
 using E_learning.Enums;
+using E_learning.Security;
+using E_learning.Services.Cloude;
+using E_learning.Model.cloudeDB;
 
-namespace E_learning.Controllers
+namespace E_learning.Controllers.Auth
 {
     [ApiController]
     [Route("api/[controller]")]
@@ -19,12 +22,18 @@ namespace E_learning.Controllers
         private readonly IAuthRepository _authRepo;
         private readonly IConfiguration _configuration;
         private readonly GenerateID _generateID;
-
-        public AuthController(IAuthRepository authRepo, IConfiguration configuration, GenerateID generateID)
+        private readonly CreateAccessToken _jwtKey;
+        private readonly CreateRefreshToken _refreshToken;
+        private readonly RedisService _redisService;
+        public AuthController(IAuthRepository authRepo, IConfiguration configuration, GenerateID generateID, CreateAccessToken jWT, CreateRefreshToken refreshToken, RedisService redisService)
         {
             _authRepo = authRepo;
             _configuration = configuration;
             _generateID = generateID;
+            _jwtKey = jWT;
+            _refreshToken = refreshToken;
+            _redisService = redisService;
+
         }
 
         [HttpPost("register")]
@@ -70,6 +79,7 @@ namespace E_learning.Controllers
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginDTO loginDto)
         {
             var user = await _authRepo.GetUserByUsernameAsync(loginDto.Username);
@@ -79,32 +89,45 @@ namespace E_learning.Controllers
                 return Unauthorized(new { Message = "Invalid username or password" });
             }
 
-            var token = GenerateJwtToken(user);
-        
-            return Ok(new { token });
-        }
-
-        private string GenerateJwtToken(UserModel user)
-        {
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
-            var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
-
-            var claims = new[]
+            var Accesstoken = _jwtKey.GenerateJwtAccessToken(user);
+            var RefreshToken = _refreshToken.GenerateRefreshToken();
+            RedisModel redisModel = new RedisModel
             {
-                new Claim("UserID", user.UserID),
-                new Claim(JwtRegisteredClaimNames.Email, user.Email),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim(ClaimTypes.Role, user.UserRole.ToString())
+                key = user.UserID,
+                value = RefreshToken,
+                expirationInSeconds = TimeSpan.FromDays(7)
+
             };
-
-            var token = new JwtSecurityToken(
-                issuer: _configuration["Jwt:Issuer"],
-                audience: _configuration["Jwt:Audience"],
-                claims: claims,
-                expires: DateTime.Now.AddHours(3),
-                signingCredentials: credentials);
-
-            return new JwtSecurityTokenHandler().WriteToken(token);
+            _redisService.SetAsync(redisModel);
+            return Ok(new { Accesstoken, RefreshToken });
         }
+        [HttpPost("refresh-token")]
+        [AllowAnonymous]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+        public async Task<IActionResult> checkRefreshToken([FromBody] RefreshTokenDTO refreshTokenDTO)
+        {
+            var user = await _authRepo.getUserbyID(refreshTokenDTO.UserId);
+            Console.WriteLine($"User ID: {user.Email}");
+            if (user == null)
+            {
+                return Unauthorized(new { Message = "Invalid user ID" });
+            }
+            var redisToken = await _redisService.GetAsync(refreshTokenDTO.UserId);
+            Console.WriteLine($"Redis Token: {redisToken}");
+            if (redisToken == null)
+            {
+                return Unauthorized(new { Message = "Invalid or expired refresh token" });
+            }
+            var newAccessToken = _jwtKey.GenerateJwtAccessToken(user);
+            var newRefreshToken = _refreshToken.GenerateRefreshToken();
+            RedisModel redisModel = new RedisModel {
+                key = user.UserID,
+                value = newRefreshToken,
+                expirationInSeconds = TimeSpan.FromDays(7)
+            };
+            await _redisService.SetAsync(redisModel);
+            return Ok(new { AccessToken = newAccessToken, RefreshToken = newRefreshToken });
+        }
+
     }
 }

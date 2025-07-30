@@ -64,5 +64,14 @@ namespace E_learning.Repositories.Auth
         public Task<bool> CheckUsernameExistsAsync(string username) => _authDAL.CheckUsernameExistsAsync(username);
 
         public Task<UserModel> GetUserByUsernameAsync(string username) => _authDAL.GetUserByUsername(username);
+
+        public Task<UserModel> getUserbyID(string userID)
+        {
+            return _authDAL.getUserbyID(userID);
+        }
+        public Task<UserModel> GetUserByEmailAsync(string email)
+        {
+            return _authDAL.GetUserByEmailAsync(email);
+        }
     }
 }
