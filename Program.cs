@@ -22,7 +22,7 @@ using E_learning.Security;
 
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.WebHost.UseUrls("http://0.0.0.0:7173");
 // Lấy chuỗi kết nối
 builder.Services.AddSingleton<CoursesDAL>();
 builder.Services.AddSingleton<LessonDAL>();

@@ -1,0 +1,25 @@
+bin/
+obj/
+*.user
+*.suo
+*.csproj.user
+.vscode/
+.git/
+ 
+# docker exec -it course_management-sqlserver-1 mkdir -p /var/opt/mssql/backup
+# docker cp "E:\E_Learning.bak" course_management-sqlserver-1:/var/opt/mssql/backup/E_Learning.bak
+
+
+#  docker run -it --rm --network=course_management_integration-net mcr.microsoft.com/mssql-tools /bin/bash
+# /opt/mssql-tools/bin/sqlcmd -S sqlserver -U SA -P 'Trunghieu89@'
+
+
+# RESTORE FILELISTONLY FROM DISK = N'/var/opt/mssql/backup/E_Learning.bak'
+# GO
+
+# RESTORE DATABASE [E_learning]
+# FROM DISK = N'/var/opt/mssql/backup/E_Learning.bak'
+# WITH MOVE 'E_learning' TO '/var/opt/mssql/data/E_learning.mdf',
+#      MOVE 'E_learning_log' TO '/var/opt/mssql/data/E_learning_log.ldf',
+#      REPLACE
+# GO
