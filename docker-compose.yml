@@ -1,0 +1,32 @@
+services:
+  backend: 
+    build:
+      context: ./E-learning
+      dockerfile: Dockerfile
+    ports:
+     - "7173:7173"
+    depends_on:
+    - sqlserver
+    - redis 
+    environment:
+        ConnectionStrings__SqlServerConnection: "Server=sqlserver;Database=E_learning;User Id=sa;Password=Trunghieu89@;TrustServerCertificate=True;"
+    networks:
+       - integration-net
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      SA_PASSWORD: "Trunghieu89@"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1435:1433"
+    networks:
+        - integration-net
+  redis:
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - integration-net
+networks:
+    integration-net:
+      driver: bridge
