@@ -3,6 +3,7 @@ using E_learning.Model.Payment;
 using E_learning.Repositories.Payment;
 using E_learning.Services;
 using E_learning.Services.VNPay;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace E_learning.Controllers.Payment
@@ -24,7 +25,7 @@ namespace E_learning.Controllers.Payment
             _checkExsistingID = checkExsistingID;
             _paymentRepository = paymentRepository;
         }
-
+        [Authorize(Roles = "Admin,Student,Lecturer")]
         [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] PaymentRequestDTO model)
         {
@@ -50,7 +51,7 @@ namespace E_learning.Controllers.Payment
                 });
             }
         }
-
+        [Authorize(Roles = "Admin,Student,Lecturer")]
         [HttpGet("vnpay-return")]
         public async Task<IActionResult> VNPayReturn([FromQuery] string courseId, [FromQuery] string buyerId)
         {
@@ -113,7 +114,7 @@ namespace E_learning.Controllers.Payment
                 });
             }
         }
-
+        [Authorize(Roles = "Admin")]
         [HttpGet("getAllPayment")]
         [ProducesResponseType(typeof(IEnumerable<PaymentModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

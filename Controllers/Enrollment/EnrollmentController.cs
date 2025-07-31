@@ -3,6 +3,7 @@ using E_learning.Model.Courses;
 using E_learning.Model.Enrollment;
 using E_learning.Repositories.Enrollment;
 using E_learning.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace E_learning.Controllers.Enrollment
@@ -23,6 +24,7 @@ namespace E_learning.Controllers.Enrollment
             _generateID = generateID;
             _checkExsistingID = checkExsistingID;
         }
+        [Authorize(Roles = "Admin")]
         [HttpGet("GetAllEnrollments")]
         [ProducesResponseType(typeof(IEnumerable<EnrollmentModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -44,7 +46,7 @@ namespace E_learning.Controllers.Enrollment
                 return StatusCode(500, "Internal server error");
             }
         }
-
+        [Authorize(Roles = "Admin,Student,Lecturer")]
         [HttpPost("InsertEnrollment")]
         [ProducesResponseType(typeof(EnrollmentModel), statusCode: 201)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -79,7 +81,7 @@ namespace E_learning.Controllers.Enrollment
                 return StatusCode(500, "Internal server error");
             }
         }
-
+        [Authorize(Roles = "Admin,Student,Lecturer")]
         [HttpGet("GetEnrollmentsByUserID/{userID}")]
         [ProducesResponseType(typeof(IEnumerable<EnrollmentModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

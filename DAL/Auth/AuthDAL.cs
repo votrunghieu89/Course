@@ -169,7 +169,7 @@ namespace E_learning.DAL.Auth
                 using (SqlConnection connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    string query = "SELECT * FROM Users WHERE Email = @Email";
+                    string query = "SELECT UserID,Username,Password,FirstName,LastName,UserRole FROM Users WHERE Email = @Email";
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@Email", email);

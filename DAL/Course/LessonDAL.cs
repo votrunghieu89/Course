@@ -24,7 +24,7 @@ namespace E_learning.DAL.Course
                 using (SqlConnection connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    string query = "SELECT * FROM Lessons WHERE CourseID = @CourseID";
+                    string query = "SELECT LessonID,LessonTitle FROM Lessons WHERE CourseID = @CourseID";
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
                         command.Parameters.AddWithValue("@CourseID", courseID);
@@ -34,8 +34,8 @@ namespace E_learning.DAL.Course
                             {
                                 string lessonID = reader.GetString(reader.GetOrdinal("LessonID"));
                                 string lessonTitle = reader.GetString(reader.GetOrdinal("LessonTitle"));
-                                string lessonURL = reader.GetString(reader.GetOrdinal("LessonURL"));
-                                LessonModel lesson = new LessonModel(lessonID, lessonTitle, lessonURL, courseID);
+                        
+                                LessonModel lesson = new LessonModel(lessonID, lessonTitle, courseID);
                                 lessons.Add(lesson);
                             }
                         }
@@ -80,13 +80,12 @@ namespace E_learning.DAL.Course
                 using (SqlConnection connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    string query = "INSERT INTO Lessons (LessonID, LessonTitle, LessonURL, CourseID) VALUES (@LessonID, @LessonTitle, @LessonURL, @CourseID)";
+                    string query = "INSERT INTO Lessons (LessonID, LessonTitle, CourseID) VALUES (@LessonID, @LessonTitle, @CourseID)";
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("@LessonID", lesson.GetLessonID());
-                        command.Parameters.AddWithValue("@LessonTitle", lesson.GetLessonTitle());
-                        command.Parameters.AddWithValue("@LessonURL", lesson.GetLessonURL());
-                        command.Parameters.AddWithValue("@CourseID", lesson.GetCourseID());
+                        command.Parameters.AddWithValue("@LessonID", lesson.LessonID);
+                        command.Parameters.AddWithValue("@LessonTitle", lesson.LessonTitle);
+                        command.Parameters.AddWithValue("@CourseID", lesson.CourseID);
                         int rowsAffected = await command.ExecuteNonQueryAsync();
                         return rowsAffected > 0;
                     }
@@ -94,7 +93,7 @@ namespace E_learning.DAL.Course
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error inserting lesson with ID: {LessonID}", lesson.GetLessonID());
+                _logger.LogError(ex, "Error inserting lesson with ID: {LessonID}", lesson.LessonID);
                 return false;
             }
         }

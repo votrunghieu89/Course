@@ -5,6 +5,8 @@ using E_learning.Services;
 using E_learning.Repositories.Course;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authorization;
+using E_learning.Services.Cloude;
+using E_learning.Model.cloudeDB;
 namespace E_learning.Controllers.Course
 {
     [Route("api/[controller]")]
@@ -14,15 +16,17 @@ namespace E_learning.Controllers.Course
         private readonly ILogger<CourseController> _logger;
         private readonly ICourseRepository _courseRepo;
         private readonly GenerateID _generateID;
+        private readonly RedisService _redisService;
         private readonly CheckExsistingID _checkExsistingID;
-        public CourseController(ILogger<CourseController> logger, ICourseRepository courseRepo, GenerateID generateID, CheckExsistingID exsistingID)
+        public CourseController(ILogger<CourseController> logger, ICourseRepository courseRepo, GenerateID generateID, CheckExsistingID exsistingID, RedisService redisService)
         {
             _logger = logger;
             _courseRepo = courseRepo;
             _generateID = generateID;
             _checkExsistingID = exsistingID;
+            _redisService = redisService;
         }
-        [Authorize(Roles = "Admin,User")]
+        [Authorize(Roles = "Admin,Student,Lecturer")]
         [HttpGet("GetAllCourses")]
         [ProducesResponseType(typeof(IEnumerable<CoursesModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -31,12 +35,23 @@ namespace E_learning.Controllers.Course
         {
             try
             {
+                string resultRedis = await _redisService.GetAsync($"course:offset:{offset}:limit:{fetchnext}");
+                if(!string.IsNullOrEmpty(resultRedis))
+                {
+                    _logger.LogInformation("Returning courses from Redis cache for offset: {Offset}, limit: {Limit}", offset, fetchnext);
+                    return Ok(System.Text.Json.JsonSerializer.Deserialize<List<CoursesModel>>(resultRedis));
+                }
                 List<CoursesModel> courses = await _courseRepo.GetAllCourses(offset, fetchnext);
                 if (courses == null || courses.Count == 0)
                 {
                     return NotFound("No courses found");
                 }
-                
+                RedisModel redis = new RedisModel {
+                    key = $"course:offset:{offset}:limit:{fetchnext}",
+                    value = System.Text.Json.JsonSerializer.Serialize(courses),
+                    expirationInSeconds = TimeSpan.FromMinutes(10) + TimeSpan.FromSeconds(30) // 10 minutes and 30 seconds
+                    };
+                await _redisService.SetAsync(redis);
                 return Ok(courses);
             }
             catch (Exception ex)
@@ -45,7 +60,7 @@ namespace E_learning.Controllers.Course
                 return StatusCode(500, "Internal server error");
             }
         }
-
+        [Authorize(Roles = "Lecturer")]
         [HttpPost("InsertCourse")]
         [ProducesResponseType(typeof(CoursesModel), statusCode: 201)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -72,6 +87,7 @@ namespace E_learning.Controllers.Course
                 bool isInserted = await _courseRepo.InsertCourse(courseModel);
                 if (isInserted)
                 {
+                    await _redisService.DeleteAsync($"course:authorID:{course.Author}");
                     return Ok(new { Message = "Course inserted successfully." });
                 }
                 else
@@ -85,7 +101,7 @@ namespace E_learning.Controllers.Course
                 return StatusCode(500, "Internal server error");
             }
         }
-
+        [Authorize(Roles = "Lecturer")]
         [HttpDelete("DeleteCourse/{courseID}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -114,29 +130,43 @@ namespace E_learning.Controllers.Course
                 return StatusCode(500, "Internal server error");
             }
         }
-
-        [HttpGet("GetCourseByID/{courseID}")]
+        [Authorize(Roles = "Lecturer")]
+        [HttpGet("GetCourseByID/{authorID}")]
         [ProducesResponseType(typeof(CoursesModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetCourseByID(string courseID)
+        public async Task<IActionResult> GetCourseByID(string authorID)
         {
-            if (string.IsNullOrEmpty(courseID))
+            if (string.IsNullOrEmpty(authorID))
             {
                 return BadRequest("Course ID is null or empty");
             }
             try
             {
-                CoursesModel course = await _courseRepo.GetCourseByID(courseID);
-                if (course == null)
+                string resultRedis = await _redisService.GetAsync($"course:authorID:{authorID}");
+                if (!string.IsNullOrEmpty(resultRedis))
+                {
+                    _logger.LogInformation("Returning course from Redis cache for author ID: {AuthorID}", authorID);
+                    return Ok(System.Text.Json.JsonSerializer.Deserialize<List<CoursesModel>>(resultRedis));
+                }
+                List<CoursesModel> courses = await _courseRepo.getCoursebyAuthorID(authorID);
+                if (courses == null)
                 {
                     return NotFound("Course not found");
                 }
-                return Ok(course);
+                Console.WriteLine($"Courses retrieved: {courses.Count}");
+                RedisModel redis = new RedisModel
+                {
+                    key = $"course:authorID:{authorID}",
+                    value = System.Text.Json.JsonSerializer.Serialize(courses),
+                    expirationInSeconds = TimeSpan.FromMinutes(10) + TimeSpan.FromSeconds(30) // 10 minutes and 30 seconds
+                };
+                await _redisService.SetAsync(redis);
+                return Ok(courses);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error retrieving course with ID: {CourseID}", courseID);
+                _logger.LogError(ex, "Error retrieving course with ID: {CourseID}", authorID);
                 return StatusCode(500, "Internal server error");
             }
         }

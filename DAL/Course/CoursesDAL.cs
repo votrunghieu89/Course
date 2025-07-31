@@ -94,11 +94,11 @@ namespace E_learning.DAL.Course
                     string query = "INSERT INTO Courses (CourseID, CourseName, CoursePrice,CourseDescription , AuthorID) VALUES (@CourseID, @CourseName, @CoursePrice,@CourseDescription, @AuthorID)";
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("@CourseID", course.GetCourseID());
-                        command.Parameters.AddWithValue("@CourseName", course.GetCourseName());
-                        command.Parameters.AddWithValue("@CoursePrice", course.GetCoursePrice());
-                        command.Parameters.AddWithValue("@CourseDescription", course.GetCourseDescription());
-                        command.Parameters.AddWithValue("@AuthorID", course.GetAuthorID());
+                        command.Parameters.AddWithValue("@CourseID", course.CourseID);
+                        command.Parameters.AddWithValue("@CourseName", course.CourseName);
+                        command.Parameters.AddWithValue("@CoursePrice", course.CoursePrice);
+                        command.Parameters.AddWithValue("@CourseDescription", course.CourseDescription);
+                        command.Parameters.AddWithValue("@AuthorID", course.AuthorID);
                         int rowsAffected = await command.ExecuteNonQueryAsync();
                         return rowsAffected > 0;
                     }
@@ -134,27 +134,28 @@ namespace E_learning.DAL.Course
             }
         }
         // lấy khóa học theo ID
-        public async Task<CoursesModel> getCourseByID(string courseID)
+        public async Task<List<CoursesModel>> getCoursebyAuthorID(string authorID)
         {
-            CoursesModel course = null;
+            List<CoursesModel> courses = new List<CoursesModel>();
             try
             {
                 using (SqlConnection connection = new SqlConnection(_connectionString))
                 {
                     await connection.OpenAsync();
-                    string query = "SELECT * FROM Courses WHERE CourseID = @CourseID";
+                    string query = "SELECT CourseID, CourseName, CoursePrice,CourseDescription FROM Courses WHERE AuthorID = @AuthorID";
                     using (SqlCommand command = new SqlCommand(query, connection))
                     {
-                        command.Parameters.AddWithValue("@CourseID", courseID);
+                        command.Parameters.AddWithValue("@AuthorID", authorID);
                         using (SqlDataReader reader = await command.ExecuteReaderAsync())
                         {
-                            if (await reader.ReadAsync())
+                            while (await reader.ReadAsync())
                             {
+                                string courseID = reader.GetString(reader.GetOrdinal("CourseID"));
                                 string courseName = reader.GetString(reader.GetOrdinal("CourseName"));
                                 decimal coursePrice = reader.GetDecimal(reader.GetOrdinal("CoursePrice"));
                                 string courseDescription = reader.GetString(reader.GetOrdinal("CourseDescription"));
-                                string authorID = reader.GetString(reader.GetOrdinal("AuthorID"));
-                                course = new CoursesModel(courseID, courseName, coursePrice, courseDescription, authorID);
+                                CoursesModel course = new CoursesModel(courseID, courseName, coursePrice, courseDescription, authorID);
+                                courses.Add(course);
                             }
                         }
                     }
@@ -162,9 +163,10 @@ namespace E_learning.DAL.Course
             }
             catch (Exception ex)
             {
+                return null;
                 _logger.LogError(ex, "Error retrieving course by ID");
             }
-            return course;
+            return courses;
         }
 
         // Kiểm tra ID khóa học

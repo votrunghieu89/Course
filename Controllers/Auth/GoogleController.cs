@@ -78,11 +78,9 @@ namespace E_learning.Controllers.Auth
                     Password = "", 
                     UserRole = UserRole.Student
                 };
-                await _authRepo.AddUserAsync(newUser);
+                var result = await _authRepo.AddUserAsync(newUser);
                 existingUser = newUser;
             }
-        
-
             var jwt = _jwtKey.GenerateJwtAccessToken(existingUser);
             var refreshToken = _refreshToken.GenerateRefreshToken();
 

@@ -36,6 +36,7 @@ namespace E_learning.Controllers.Course
             _enrollmentRepo = enrollmentRepository;
 
         }
+        [Authorize(Roles = "Admin,Student,Lecturer")]
         [HttpGet("GetLessonsByCourseID/{courseID}")]
         [ProducesResponseType(typeof(IEnumerable<LessonModel>), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -44,11 +45,24 @@ namespace E_learning.Controllers.Course
         {
             try
             {
+                string resultKey = await _redisService.GetAsync($"lessons:course:{courseID}");
+                if (!string.IsNullOrEmpty(resultKey))
+                {
+                    _logger.LogInformation("Returning lessons from Redis cache for course ID: {CourseID}", courseID);
+                    return Ok(System.Text.Json.JsonSerializer.Deserialize<List<LessonModel>>(resultKey));
+                }
                 List<LessonModel> lessons = await _courseRepo.GetLessonsByCourseID(courseID);
                 if (lessons == null || lessons.Count == 0)
                 {
                     return NotFound("No lessons found for the specified course ID");
                 }
+                RedisModel redis = new RedisModel
+                {
+                    key = $"lessons:course:{courseID}",
+                    value = System.Text.Json.JsonSerializer.Serialize(lessons),
+                    expirationInSeconds = TimeSpan.FromMinutes(10) + TimeSpan.FromSeconds(30) // 10 minutes and 30 seconds
+                };
+                await _redisService.SetAsync(redis);
                 return Ok(lessons);
             }
             catch (Exception ex)
@@ -57,7 +71,7 @@ namespace E_learning.Controllers.Course
                 return StatusCode(500, "Internal server error");
             }
         }
-
+        [Authorize(Roles = "Lecturer")]
         [HttpDelete("DeleteLesson/{lessonID}")]
         [ProducesResponseType(statusCode: 204)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -71,6 +85,7 @@ namespace E_learning.Controllers.Course
                 {
                     return NotFound("Lesson not found");
                 }
+                await _redisService.DeleteAsync($"lessons:course:{lessonID}");
                 return NoContent();
             }
             catch (Exception ex)
@@ -79,6 +94,7 @@ namespace E_learning.Controllers.Course
                 return StatusCode(500, "Internal server error");
             }
         }
+        [Authorize(Roles = "Lecturer")]
         [HttpPost("InsertLesson")]
         [ProducesResponseType(typeof(LessonModel), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -87,34 +103,38 @@ namespace E_learning.Controllers.Course
         {
             try
             {
+                // tạo lessonID
                 string lessonID = await _checkExsistingID.GenerateUniqueIDForStringList(
                     _courseRepo.GetAllLessonsID,
                     _generateID.generateLessonID
                 );
-
                 _logger.LogInformation("🆕 Generating lesson ID: {lessonId}", lessonID);
-
-                await _convertURL.UploadVideo(lesson.videoFile, lessonID);
-                string conversionResult = await _convertURL.TryConvertWithRetry(lessonID);
-
-               
-                var fullUrl = $"{Request.Scheme}://{Request.Host}{conversionResult}";
                 var model = new LessonModel(
-                    lessonID,
-                    lesson.lessonTitle,
-                    fullUrl,
-                    lesson.courseID
+                  lessonID,
+                  lesson.lessonTitle,
+                  lesson.courseID
                 );
-
+                // Thêm dữ liệu vào DB
                 bool inserted = await _courseRepo.InsertLesson(model);
-
                 if (!inserted)
                 {
-                    await _convertURL.DeleteVideo(lessonID); // Clean up if insert fails
                     return StatusCode(500, "Failed to insert lesson");
                 } else {
+                    // Convert video
+                    await _convertURL.UploadVideo(lesson.videoFile, lessonID);
+                    string conversionResult = await _convertURL.TryConvertWithRetry(lessonID);
                     var videoPath = Path.Combine("private_videos", "videos", lessonID);
+                    if (conversionResult != "Success")
+                    {
+                        _logger.LogError("❌ Video conversion failed for lesson {lessonId}: {error}", lessonID, conversionResult);
+                        return StatusCode(500, "Video conversion failed: " + conversionResult);
+                    }
+                    _logger.LogInformation("✅ Video conversion successful for lesson {lessonId}", lessonID);
+                    // Upload video to Backblaze
                     await _backblazeService.UploadFolderAsync(videoPath, lessonID);
+                    _logger.LogInformation("🔗 Video uploaded to Backblaze for lesson {lessonId}", lessonID);
+                    // Lưu URL vào Redis
+                    await _redisService.DeleteAsync($"lessons:course:{lesson.courseID}"); // Xóa cache Redis nếu có
                     return Ok(new
                     {
                         message = "Lesson inserted successfully",
@@ -201,7 +221,7 @@ namespace E_learning.Controllers.Course
         //    _logger.LogInformation("🔗 Generated signed URL for lesson {lessonId}: {videoUrl}", lessonID, videoUrlB2);
         //    return Ok(new { videoB2Url = videoUrlB2 });
         //}
-
+        [AllowAnonymous]
         [HttpPost("getSignedURLRedis/{lessonID}")]
         [ProducesResponseType(typeof(string), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -219,6 +239,7 @@ namespace E_learning.Controllers.Course
 
             return Ok(new { videoUrl = redisModel });
         }
+        [AllowAnonymous]
         [HttpPost("getSignedURlNginx/{lessonID}")]
         [ProducesResponseType(typeof(string), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -229,6 +250,7 @@ namespace E_learning.Controllers.Course
 
             return Ok(new { videoUrl = videoKey });
         }
+        [AllowAnonymous]
         [HttpPost("saveURlonRedis/{lessonID}")]
         [ProducesResponseType(typeof(string), statusCode: 200)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -247,7 +269,7 @@ namespace E_learning.Controllers.Course
            (
                 redisKey,
                 videoUrlB2,
-                TimeSpan.FromHours(3)
+                TimeSpan.FromHours(3) + Random.Shared.Next(0, 60) * TimeSpan.FromMinutes(1) 
            );
             bool isSaved = await _redisService.SetAsync(newRedis);
             if (!isSaved)

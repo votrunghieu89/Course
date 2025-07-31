@@ -8,7 +8,7 @@ namespace E_learning.Repositories.Course
             // Courses
             Task<List<string>> GetAllCoursesID();
             Task<List<CoursesModel>> GetAllCourses(int offset, int fetchnext);
-            Task<CoursesModel> GetCourseByID(string courseID);
+            Task<List<CoursesModel>> getCoursebyAuthorID(string authorID);
             Task<bool> InsertCourse(CoursesModel course);
             Task<bool> DeleteCourse(string courseID);
        
